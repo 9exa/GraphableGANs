@@ -20,7 +20,7 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    package_dir={"": "sooorce"},
-    packages=setuptools.find_packages(where="sooorce"),
+    package_dir={"": "GraphableGANs"},
+    packages=setuptools.find_packages(where="GraphableGANs"),
     python_requires=">=3.6",
 )

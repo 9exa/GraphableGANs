@@ -13,10 +13,16 @@ def shapeGenerator(dimensions = 2):
         model.add(pooler)
         model.add(convoluter)
         model.add(dense)
+    model.add(tf.keras.layers.tanh())
     return model
-def shapeDiscriminator(dimensions = 2):
+#gets more features, but otherwise a more straitforward model
+def shapeDiscriminator():
     model = gg.GraphSequential()
-    return model
+    model.add(gg.layers.PoolFeatures(gg.minMaxAngle))
+    model.add(gg.layers.DropAdj())
+    model.add(tf.keras.layers.Dense(12, activation = "relu"))
+    model.add(tf.keras.layers.Dense(1, activation = "sigmoid"))
+return model
 #The MiscGan framework as described in the origional paper: https://www.frontiersin.org/articles/10.3389/fdata.2019.00003/full
 def miscGan():
     return 0
