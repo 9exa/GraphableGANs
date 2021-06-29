@@ -14,3 +14,8 @@ def multiToSimple(graphs, handleMults = "ignore"):
         for e in g.edges:
             out[-1][e[0]][e[1]] = 1
     return out
+
+def sparseToDense():
+    pass
+def coarser():
+    pass

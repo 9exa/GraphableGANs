@@ -14,3 +14,9 @@ def shapeGenerator(dimensions = 2):
         model.add(convoluter)
         model.add(dense)
     return model
+def shapeDiscriminator(dimensions = 2):
+    model = gg.GraphSequential()
+    return model
+#The MiscGan framework as described in the origional paper: https://www.frontiersin.org/articles/10.3389/fdata.2019.00003/full
+def miscGan():
+    return 0

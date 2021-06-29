@@ -60,3 +60,16 @@ class BiGAN(Model):
 #same as biGAN but also check for cyclic consistancy
 class CycleGan(Model):
     pass
+
+#generators
+#The generator framework used in the miscGan paper
+
+class miscGanGenerator(GraphSequential):
+    """
+    Breaks graph into layers using coarser matricies, constructs new graphs
+    by multiplying them by learnable reconstruction matricies.
+    Output is list of reconstructed graphs
+
+    "Generated graph" is supposed to be linear combination of reconstructed gs
+    """
+    def __init__(self, coarsers):
