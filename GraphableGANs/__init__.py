@@ -1,10 +1,12 @@
 #importing children
 from . import layers
+from . import models
 from .models import *
 from . import prebuilt
-#import importlib
-#importlib.reload(layers)
-
+from . import utils
+# import importlib
+# importlib.reload(models)
+#
 import tensorflow as tf
 from tensorflow.keras.layers import Layer
 from time import time

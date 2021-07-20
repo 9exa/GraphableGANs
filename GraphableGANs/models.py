@@ -5,7 +5,7 @@ from tensorflow.keras import Model
 
 #general models for graphs
 #call takes in tuple, first element is tensor of adjacencies, second is tensor of features
-class GraphSequential(tf.keras.Model):
+class GraphSequential(Model):
 
     def __init__(self, lays = None):
         super(GraphSequential, self).__init__()
@@ -25,7 +25,8 @@ class GraphSequential(tf.keras.Model):
             # if trackTime:
                 # start = time()
             # print(curr[0].shape)
-            if isinstance(lay, layers.GraphLayer) or not isinstance(curr, tuple):
+            if (isinstance(lay, gg.layers.GraphLayer)
+                or not isinstance(curr, tuple)):
                 # print("HERE!")
                 curr = lay(curr)
             else:
@@ -45,14 +46,49 @@ class GraphSequential(tf.keras.Model):
 
 #one-way GAN framework, analogous to origional GAN implementation
 class BasicGan(Model):
-    def __init__(self, generator, discriminator, gloss, dloss, **kwargs):
+    def __init__(self, generator, discriminator, genLoss, discLoss,
+            genOptimizer = None, discOptimizer = None, **kwargs):
         super(BasicGan, self).__init__(kwargs)
         self.generator = generator
         self.discriminator = discriminator
-        self.genLoss = gLoss
-        self.discLoss = dLoss
-    def train(self):
-        pass
+        self.genLoss = genLoss
+        self.discLoss = discLoss
+        if genOptimizer == None:
+            self.genOptimizer = tf.keras.optimizers.Adam(0.01)
+        if discOptimizer == None:
+            self.discOptimizer = tf.keras.optimizers.Adam(0.01)
+    @tf.function
+    def trainStep(self, noiseGraphs, exampleGraphs, trackTime = False):
+        if trackTime:
+            tstart = time()
+
+        with tf.GradientTape() as genTape, tf.GradientTape() as discTape:
+            if trackTime:
+                start = time()
+            falseGraphs = self.generator(noiseGraphs, training = True)
+            if trackTime:
+                print("generation time:", time()-start)
+                start = time()
+            realOutput = self.discriminator(exampleGraphs, training = True)
+            fakeOutput = self.discriminator(falseGraphs, training = True)
+            if trackTime:
+                print("discrimination time:", time() - start)
+                start = time()
+            gLoss = self.genLoss(fakeOutput)
+            dLoss = self.discLoss(fakeOutput, realOutput)
+            print(dLoss)
+        genGrad = genTape.gradient(gLoss,
+                                        self.generator.trainable_variables)
+        discGrad = discTape.gradient(dLoss,
+                                        self.discriminator.trainable_variables)
+        self.genOptimizer.apply_gradients(zip(genGrad,
+                                            self.generator.trainable_variables))
+        self.discOptimizer.apply_gradients(zip(discGrad,
+                                            self.discriminator.trainable_variables))
+        if trackTime:
+            print("Gradient decent time:", time() - start)
+    def call(self, input):
+        return self.generator(input)
 #two way GAN that learns genration from target domain to source domian
 class BiGAN(Model):
     pass
@@ -62,6 +98,8 @@ class CycleGan(Model):
     pass
 
 #generators
+
+
 #The generator framework used in the miscGan paper
 
 class miscGanGenerator(GraphSequential):
@@ -73,3 +111,4 @@ class miscGanGenerator(GraphSequential):
     "Generated graph" is supposed to be linear combination of reconstructed gs
     """
     def __init__(self, coarsers):
+        pass

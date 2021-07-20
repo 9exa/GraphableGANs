@@ -1,13 +1,17 @@
 
 import tensorflow as tf
+from GraphableGANs import utils
+#relative imports are scary, as you can't import submodules diresctly
 
-
-#call takes in tuple, first element is tensor of adjacencies, second is tensor of features
+#call takes in tuple, first element is tensor of adjacencies,
+#second is tensor of features
 class GraphLayer(tf.keras.layers.Layer):
     #edgeType determines method of node exploration
     def __init__(self, edgeType = "AdjMatrix", **kwargs):
         super(GraphLayer, self).__init__(kwargs)
         self.edgeType = edgeType
+    def build(self, inputShape):
+        super(GraphLayer, self).build(inputShape)
     def __tostring__(self):
         return "a GG Layer"
 
@@ -29,7 +33,16 @@ class PoolFeatures(GraphLayer):
 #bfs for every node a certain depth and adds transversed features based on weights
 
 class VertConvolution(GraphLayer):
-    def __init__(self, depth = 1, weights = None, trainable = False):
+    def __init__(self, depth = 1, weights = None, edgeType = "Simple",
+            trainable = False):
+        """
+        TODO edgeType can be:
+            'Simple' - vertex features multiplied by weights
+            'Multi' - vertex features multiplied by value in adjacency
+            'Catagorical' - different weight matrix for each catagory
+            'Feature' - edge features undergo bilinear transformation to change
+            into the shape of vertex features, then multiplies as wee
+        """
         super(VertConvolution, self).__init__(trainable=trainable)
         if weights != None:
             self.w = tf.Tensor(weights)
@@ -37,6 +50,7 @@ class VertConvolution(GraphLayer):
             self.w = tf.Variable(initial_value = 0.5 ** tf.range(depth + 1,
                     dtype = "float32"), trainable = True)
         self.depth = depth
+        self.edgeType = edgeType
     def call(self, inputs):
         adjMs = inputs[0]
         feats = inputs[1]
@@ -159,11 +173,15 @@ class DropAdj(GraphLayer):
         super(DropAdj, self).__init__(trainable=False)
         self.toList = toList
     def call(self, inputs):
-        inputs[1]
         if self.toList:
             return list(inputs[1])
         else:
             return inputs[1]
+class DropFeat(GraphLayer):
+    def __init__(self):
+        super(DropFeat, self).__init__(trainable=False)
+    def call(self, inputs):
+        return inputs[0]
 class EmbedFeatures(GraphLayer):
     def __init__(self, method = "average"):
         super(EmbedFeatures, self).__init__(trainable=False)
@@ -173,6 +191,80 @@ class EmbedFeatures(GraphLayer):
             pass
         elif self.method == "average":
             return tf.reduce_mean(inputs, -2)
+
+#generates adjacency matrix from the features using some bilnear weights
+class BiDenseAdjacency(GraphLayer):
+    def __init__(self, activation = "linear", invertProb = False, **kwargs):
+        super(BiDenseAdjacency, self).__init__(kwargs, trainable=True)
+        self.activation = tf.keras.activations.deserialize(activation)
+        self.invert = invertProb
+    def build(self, inputShape):
+        nFeats = inputShape[1][-1] #number of features per vertex
+        self.w = self.add_weight(shape = (nFeats, nFeats),
+                            initializer = "random_normal",
+                            trainable = True)
+        self.b = self.add_weight(shape = (1,), trainable = True)
+
+
+    def call(self, graphs):
+        adjMs = graphs[0]
+        feats = graphs[1]
+        y = self.activation(tf.map_fn(self.getAdj, feats))
+        """if this is true, y is interperated as the probability that a edge
+        exists, which is is in inverted by the true adjacency matrix
+        and interperated as the probablity that the graph is real"""
+        if self.invert == True:
+            y = 1- (adjMs - y) ** 2
+        return (y, feats)
+
+    def getAdj(self, verts):
+        def biLinMult(u, v, W, b): #we'll use this
+            c = tf.tensordot(u, W, 1)
+            return tf.tensordot(c, v, 1) + b
+            #the dot product but with W in the middle
+        N = verts.shape[0] #number of verticies
+        indicies = utils.cartesian(tf.range(N), tf.range(N))
+        d = tf.map_fn(lambda t: biLinMult(verts[t[0]],
+                                    verts[t[1]],
+                                    self.w, self.b),
+                indicies, dtype = "float32")
+        return tf.reshape(d, (N, N))
+
+#adjacency using normal linear layers and concatenate
+class DenseAdjacency(GraphLayer):
+    def __init__(self, activation = "linear", invertProb = False, **kwargs):
+        super(DenseAdjacency, self).__init__(kwargs, trainable=True)
+        self.activation = tf.keras.activations.deserialize(activation)
+        self.invert = invertProb
+    def build(self, inputShape):
+        nFeats = inputShape[1][-1] #number of features per vertex
+        self.w = self.add_weight(name = "weights",
+                            shape = (1, nFeats*2),
+                            initializer = "random_normal",
+                            trainable = True)
+        self.b = self.add_weight(name = "bias", shape = (1,), trainable = True)
+        super(DenseAdjacency, self).build(inputShape)
+
+    def getAdj(self, verts):
+        def helper(t):
+            v = tf.concat([t[0], t[1]],0)
+            return tf.tensordot(self.w, v, 1) + self.b
+        #the dot product but with W in the middle
+        N = verts.shape[0]
+        combs = utils.cartesian(verts, verts)
+        d = tf.map_fn(helper, combs, dtype = "float32")
+        return tf.reshape(d, (N, N))
+    def call(self, graphs):
+        adjMs = graphs[0]
+        feats = graphs[1]
+        y = self.activation(tf.map_fn(self.getAdj, feats))
+        """if this is true, y is interperated as the probability that a edge
+        exists, which is is in inverted by the true adjacency matrix
+        and interperated as the probablity that the graph is real"""
+        if self.invert == True:
+            y = (adjMs - y) ** 2
+        return (y, feats)
+
 class NeuralFP(GraphLayer):
     pass
 class DeepWalk(GraphLayer):
